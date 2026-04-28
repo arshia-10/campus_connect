@@ -7,6 +7,7 @@ export default function JobCard({ job, dark, t, onNeedLogin, onApplySuccess }) {
   const { user, applyToJob, toggleSaveJob, hasApplied, isSaved } = useAuth();
   const [applyModal, setApplyModal] = useState(false);
 
+  const isStudent = user && String(user.role || '').toLowerCase() === 'student';
   const applied = hasApplied(job.id);
   const saved   = isSaved(job.id);
 
@@ -76,36 +77,38 @@ export default function JobCard({ job, dark, t, onNeedLogin, onApplySuccess }) {
                 <StatusBadge status={job.status} dark={dark} />
               </div>
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                {/* Save button */}
-                <button
-                  onClick={() => { if (!user) { onNeedLogin(); return; } toggleSaveJob(job.id); }}
-                  className="btn"
-                  style={{
-                    background: 'none',
-                    border: `1.5px solid ${saved ? '#2ea87e' : t.border}`,
-                    borderRadius: 8, padding: '7px 10px',
-                    color: saved ? '#2ea87e' : t.textMuted,
-                    fontSize: 15, transition: 'all 0.18s',
-                  }}
-                  title={saved ? 'Unsave' : 'Save job'}
-                >
-                  {saved ? '🔖' : '📄'}
-                </button>
+              {isStudent && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {/* Save button */}
+                  <button
+                    onClick={() => { if (!user) { onNeedLogin(); return; } toggleSaveJob(job.id); }}
+                    className="btn"
+                    style={{
+                      background: 'none',
+                      border: `1.5px solid ${saved ? '#2ea87e' : t.border}`,
+                      borderRadius: 8, padding: '7px 10px',
+                      color: saved ? '#2ea87e' : t.textMuted,
+                      fontSize: 15, transition: 'all 0.18s',
+                    }}
+                    title={saved ? 'Unsave' : 'Save job'}
+                  >
+                    {saved ? '🔖' : '📄'}
+                  </button>
 
-                {/* Apply button */}
-                <button
-                  onClick={handleApply}
-                  disabled={job.status === 'closed' || applied}
-                  className="btn btn-primary btn-sm"
-                  style={{
-                    background: applied ? '#2ea87e' : job.status === 'closed' ? '#9ca3af' : '#1a3a5c',
-                    padding: '8px 20px',
-                  }}
-                >
-                  {applied ? '✓ Applied' : job.status === 'closed' ? 'Closed' : 'Apply Now'}
-                </button>
-              </div>
+                  {/* Apply button */}
+                  <button
+                    onClick={handleApply}
+                    disabled={job.status === 'closed' || applied}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      background: applied ? '#2ea87e' : job.status === 'closed' ? '#9ca3af' : '#1a3a5c',
+                      padding: '8px 20px',
+                    }}
+                  >
+                    {applied ? '✓ Applied' : job.status === 'closed' ? 'Closed' : 'Apply Now'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

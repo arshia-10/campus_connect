@@ -23,13 +23,19 @@ export default function AuthModal({ initialMode = 'login', onClose, dark, t }) {
     await new Promise(r => setTimeout(r, 500));
 
     if (mode === 'login') {
-      const res = login(email, password);
+      const res = await login(email, password);
       if (res.ok) { onClose(); }
       else { setError(res.error); }
     } else {
       if (!name.trim()) { setError('Please enter your full name.'); setLoading(false); return; }
-      const res = signup(name, email, password, role, { branch, cgpa, rollNo });
-      if (res.ok) { onClose(); }
+      // normalize visible role to backend role keys
+      const roleParam = role === 'Recruiter' ? 'company' : (role === 'TPO/Admin' ? 'admin' : 'student');
+      const res = await signup(name, email, password, roleParam, { branch, cgpa, rollNo });
+      if (res.ok) {
+        setSuccess(res.message || 'Registration successful. Please log in.');
+        setPassword('');
+        setMode('login');
+      }
       else { setError(res.error); }
     }
     setLoading(false);
@@ -157,14 +163,7 @@ export default function AuthModal({ initialMode = 'login', onClose, dark, t }) {
 
           {mode === 'login' && (
             <div style={{ textAlign: 'center', fontSize: 12, color: t.textMuted, lineHeight: 1.8 }}>
-              Demo credentials:<br />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2ea87e' }}>student@campus.edu</span>
-              {' / '}
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#2ea87e' }}>password123</span>
-              <br />
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#f59e0b' }}>admin@campus.edu</span>
-              {' / '}
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#f59e0b' }}>admin123</span>
+              Use your registered email and password to log in.
             </div>
           )}
         </div>

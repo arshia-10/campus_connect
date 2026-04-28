@@ -12,6 +12,7 @@ import HomePage          from './pages/HomePage';
 import JobsPage          from './pages/JobsPage';
 import CompaniesPage     from './pages/CompaniesPage';
 import AnalyticsPage     from './pages/AnalyticsPage';
+import SavedJobsPage     from './pages/SavedJobsPage';
 
 function AppInner() {
   const { dark, toggle: toggleDark, t } = useTheme();
@@ -32,6 +33,7 @@ function AppInner() {
 
       {page === 'home'      && <HomePage      t={t} dark={dark} setPage={setPage} onLogin={openLogin} />}
       {page === 'jobs'      && <JobsPage      t={t} dark={dark} onNeedLogin={openLogin} />}
+      {page === 'saved'     && <SavedJobsPage  t={t} dark={dark} onNeedLogin={openLogin} />}
       {page === 'companies' && <CompaniesPage t={t} dark={dark} setPage={setPage} />}
       {page === 'analytics' && <AnalyticsPage t={t} dark={dark} />}
       {page === 'dashboard' && <StudentDashboard t={t} dark={dark} setPage={setPage} />}

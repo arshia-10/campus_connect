@@ -11,6 +11,7 @@ export default function Navbar({ page, setPage, dark, toggleDark, onLogin, onSig
   const navLinks = [
     { id: 'home',      label: 'Home'      },
     { id: 'jobs',      label: 'Jobs'      },
+    { id: 'saved',     label: 'Saved'     },
     { id: 'companies', label: 'Companies' },
     { id: 'analytics', label: 'Analytics' },
   ];

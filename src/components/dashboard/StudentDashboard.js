@@ -17,6 +17,8 @@ export default function StudentDashboard({ t, dark, setPage }) {
     rollNo: user?.rollNo || '',
   });
   const [saved, setSaved] = useState('');
+  const [resumeMessage, setResumeMessage] = useState('');
+  const [uploadingResume, setUploadingResume] = useState(false);
 
   if (!user) return null;
 
@@ -28,11 +30,46 @@ export default function StudentDashboard({ t, dark, setPage }) {
 
   const savedJobs = (user.savedJobs || []).map(id => allJobs.find(j => j.id === id)).filter(Boolean);
 
-  const saveProfile = () => {
-    updateProfile(form);
-    setEditMode(false);
-    setSaved('Profile updated successfully!');
-    setTimeout(() => setSaved(''), 3000);
+  const saveProfile = async () => {
+    const result = await updateProfile(form);
+    if (result.ok) {
+      setEditMode(false);
+      setSaved('Profile updated successfully!');
+      setTimeout(() => setSaved(''), 3000);
+    }
+  };
+
+  const handleResumeUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingResume(true);
+    try {
+      const fileData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const result = await updateProfile({
+        ...form,
+        resume: {
+          name: file.name,
+          type: file.type,
+          data: fileData,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      if (result.ok) {
+        setResumeMessage('Resume uploaded successfully!');
+        setTimeout(() => setResumeMessage(''), 3000);
+      }
+    } finally {
+      setUploadingResume(false);
+      event.target.value = '';
+    }
   };
 
   const TABS = [
@@ -236,6 +273,52 @@ export default function StudentDashboard({ t, dark, setPage }) {
                 <div>
                   <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</label>
                   <div style={{ fontSize: 15, color: t.textMuted }}>{user.email}</div>
+                </div>
+
+                {/* Resume */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: t.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resume</label>
+                  {user.resume?.name ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: 15, color: t.text, fontWeight: 500 }}>
+                        📄 {user.resume.name}
+                      </div>
+                      <a
+                        href={user.resume.data}
+                        download={user.resume.name}
+                        style={{ color: '#2ea87e', fontWeight: 600, fontSize: 14 }}
+                      >
+                        Download Resume
+                      </a>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                        <button
+                          onClick={async () => {
+                            const res = await updateProfile({ resume: null });
+                            if (res.ok) {
+                              setResumeMessage('Resume removed');
+                              setTimeout(() => setResumeMessage(''), 2500);
+                            }
+                          }}
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: '#ef4444' }}
+                        >
+                          Delete Resume
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 15, color: t.textFaint }}>No resume uploaded</div>
+                  )}
+                  <div style={{ marginTop: 10 }}>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={handleResumeUpload}
+                      style={{ fontSize: 13, color: t.textMuted }}
+                    />
+                    {uploadingResume && <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>Uploading resume...</div>}
+                    {resumeMessage && <div style={{ fontSize: 12, color: '#2ea87e', marginTop: 6 }}>{resumeMessage}</div>}
+                  </div>
                 </div>
 
                 {editMode && (

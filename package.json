@@ -10,7 +10,11 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "backend": "npm --prefix backend run dev",
+    "backend:start": "npm --prefix backend run start",
+    "backend:install": "npm --prefix backend install",
+    "seed:jobs": "npm --prefix backend run seed:static-jobs"
   },
   "browserslist": {
     "production": [">0.2%", "not dead"],

@@ -4,45 +4,14 @@ const AuthContext = createContext(null);
 
 const STORAGE_KEY = 'cc_users';
 const SESSION_KEY = 'cc_session';
-
-const DEFAULT_USERS = [
-  {
-    id: 'u1',
-    name: 'Arjun Sharma',
-    email: 'student@campus.edu',
-    password: 'password123',
-    role: 'Student',
-    branch: 'Computer Science',
-    cgpa: '8.7',
-    rollNo: 'CS21B047',
-    phone: '9876543210',
-    avatar: null,
-    appliedJobs: [],
-    savedJobs: [],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'u2',
-    name: 'Admin TPO',
-    email: 'admin@campus.edu',
-    password: 'admin123',
-    role: 'TPO/Admin',
-    branch: '',
-    cgpa: '',
-    rollNo: '',
-    phone: '9999999999',
-    avatar: null,
-    appliedJobs: [],
-    savedJobs: [],
-    createdAt: new Date().toISOString(),
-  },
-];
+const TOKEN_KEY = 'cc_token';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
 
 function loadUsers() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : DEFAULT_USERS;
-  } catch { return DEFAULT_USERS; }
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
 }
 
 function saveUsers(users) {
@@ -56,9 +25,68 @@ function loadSession() {
   } catch { return null; }
 }
 
+function normalizeUser(user, password = '') {
+  return {
+    id: user.id || `u${Date.now()}`,
+    name: user.name || '',
+    email: user.email || '',
+    password: password || '',
+    role: user.role || 'Student',
+    branch: user.branch || '',
+    cgpa: user.cgpa || '',
+    rollNo: user.rollNo || '',
+    phone: user.phone || '',
+    avatar: user.avatar || null,
+    resume: user.resume || null,
+    appliedJobs: user.appliedJobs || [],
+    savedJobs: user.savedJobs || [],
+    createdAt: user.createdAt || new Date().toISOString(),
+  };
+}
+
+async function requestAuth(path, payload, method = 'POST', token = '') {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    return { ok: false, error: data.error || 'Request failed.' };
+  }
+  return data;
+}
+
 export function AuthProvider({ children }) {
   const [users, setUsers]   = useState(loadUsers);
   const [user,  setUser]    = useState(loadSession);
+
+  // on mount, if token exists verify and restore user (with appliedJobs) from backend
+  useEffect(() => {
+    const restore = async () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) return;
+      try {
+        const resp = await fetch(`${API_BASE_URL}/auth/verify`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok || !data.user) return;
+        const fromApi = normalizeUser(data.user, '');
+        const exists = users.find(u => u.email.toLowerCase() === fromApi.email.toLowerCase());
+        const merged = { ...(exists || {}), ...fromApi };
+        const updated = exists ? users.map(u => (u.email.toLowerCase() === fromApi.email.toLowerCase() ? merged : u)) : [...users, merged];
+        persistUsers(updated);
+        setUser(merged);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(merged));
+      } catch (e) {
+        // ignore
+      }
+    };
+    restore();
+  }, []);
 
   // Sync current user data when users array changes
   useEffect(() => {
@@ -74,75 +102,177 @@ export function AuthProvider({ children }) {
   };
 
   // ── AUTH ──────────────────────────────────────────────────────────────────
-  const login = (email, password) => {
-    const found = users.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!found) return { ok: false, error: 'Invalid email or password.' };
-    setUser(found);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(found));
-    return { ok: true, user: found };
+  const login = async (email, password) => {
+    try {
+      const res = await requestAuth('/auth/login', { email, password });
+      if (res.ok && res.user) {
+        const fromApi = normalizeUser(res.user, password);
+        const existing = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+        const merged = {
+          ...(existing || {}),
+          ...fromApi,
+          password,
+        };
+
+        const updated = existing
+          ? users.map(u => (u.email.toLowerCase() === email.toLowerCase() ? merged : u))
+          : [...users, merged];
+
+        persistUsers(updated);
+        setUser(merged);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(merged));
+        if (res.token) {
+          localStorage.setItem(TOKEN_KEY, res.token);
+        }
+        return { ok: true, user: merged };
+      }
+
+      if (res.error) {
+        return { ok: false, error: res.error };
+      }
+    } catch {
+      return { ok: false, error: 'Server unavailable. Please try again.' };
+    }
+
+    return { ok: false, error: 'Invalid email or password.' };
   };
 
-  const signup = (name, email, password, role, extra = {}) => {
-    if (users.find(u => u.email.toLowerCase() === email.toLowerCase()))
-      return { ok: false, error: 'This email is already registered.' };
+  const signup = async (name, email, password, role, extra = {}) => {
     if (password.length < 6)
       return { ok: false, error: 'Password must be at least 6 characters.' };
 
-    const newUser = {
-      id: `u${Date.now()}`,
-      name, email, password, role,
-      branch: extra.branch || '',
-      cgpa:   extra.cgpa   || '',
-      rollNo: extra.rollNo || '',
-      phone:  extra.phone  || '',
-      avatar: null,
-      appliedJobs: [],
-      savedJobs: [],
-      createdAt: new Date().toISOString(),
-    };
-    const updated = [...users, newUser];
+    const res = await requestAuth('/auth/register', {
+      name,
+      email,
+      password,
+      role,
+      branch: extra.branch,
+      cgpa: extra.cgpa,
+      rollNo: extra.rollNo,
+      phone: extra.phone,
+    });
+
+    if (!res.ok) {
+      return { ok: false, error: res.error || 'Unable to register.' };
+    }
+
+    const newUser = normalizeUser(
+      {
+        ...(res.user || {}),
+        name,
+        email,
+        role,
+        branch: extra.branch || res.user?.branch,
+        cgpa: extra.cgpa || res.user?.cgpa,
+        rollNo: extra.rollNo || res.user?.rollNo,
+      },
+      password
+    );
+
+    const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const updated = exists
+      ? users.map(u => (u.email.toLowerCase() === email.toLowerCase() ? newUser : u))
+      : [...users, newUser];
+
     persistUsers(updated);
-    setUser(newUser);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
-    return { ok: true, user: newUser };
+    return { ok: true, user: newUser, message: 'Registration successful. Please log in.' };
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   };
 
-  const updateProfile = (fields) => {
-    const updated = users.map(u =>
-      u.id === user.id ? { ...u, ...fields } : u
-    );
-    persistUsers(updated);
+  const updateProfile = async (fields) => {
+    if (!user) return { ok: false, error: 'Not logged in.' };
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return { ok: false, error: 'Missing auth token.' };
+
+    try {
+      const res = await requestAuth('/auth/profile', fields, 'PUT', token);
+      if (!res.ok || !res.user) {
+        return { ok: false, error: res.error || 'Unable to update profile.' };
+      }
+
+      const fromApi = normalizeUser(res.user, user.password || '');
+      const updated = users.map(u => (u.id === user.id ? { ...u, ...fromApi } : u));
+      persistUsers(updated);
+      setUser(fromApi);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(fromApi));
+      return { ok: true, user: fromApi };
+    } catch (e) {
+      return { ok: false, error: 'Unable to update profile.' };
+    }
   };
 
   // ── JOBS ──────────────────────────────────────────────────────────────────
-  const applyToJob = (jobId) => {
+  const applyToJob = async (jobId) => {
     if (!user) return false;
-    if (user.appliedJobs.includes(jobId)) return false;
-    const updated = users.map(u =>
-      u.id === user.id
-        ? { ...u, appliedJobs: [...u.appliedJobs, { jobId, appliedAt: new Date().toISOString(), status: 'Applied' }] }
-        : u
-    );
-    persistUsers(updated);
-    return true;
+
+    // already applied?
+    if ((user.appliedJobs || []).some(a => String(typeof a === 'object' ? a.jobId : a) === String(jobId))) return false;
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    try {
+      const resp = await fetch(`${API_BASE_URL}/applications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ job_id: jobId }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) return false;
+
+      const newEntry = { jobId: String(jobId), appliedAt: (data.application && data.application.applied_date) || new Date().toISOString(), status: (data.application && data.application.status) || 'Applied' };
+      const updated = users.map(u => u.id === user.id ? { ...u, appliedJobs: [...(u.appliedJobs || []), newEntry] } : u);
+      persistUsers(updated);
+      const newUser = updated.find(u => u.id === user.id);
+      setUser(newUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
-  const toggleSaveJob = (jobId) => {
-    if (!user) return;
-    const isSaved = user.savedJobs.includes(jobId);
-    const updated = users.map(u =>
-      u.id === user.id
-        ? { ...u, savedJobs: isSaved ? u.savedJobs.filter(id => id !== jobId) : [...u.savedJobs, jobId] }
-        : u
-    );
-    persistUsers(updated);
+  const toggleSaveJob = async (jobId) => {
+    if (!user) return false;
+
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return false;
+
+    try {
+      const resp = await fetch(`${API_BASE_URL}/saved-jobs/toggle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ job_id: jobId }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) return false;
+
+      const savedJobs = data.saved
+        ? [...(user.savedJobs || []), String(jobId)]
+        : (user.savedJobs || []).filter(id => String(id) !== String(jobId));
+
+      const updated = users.map(u =>
+        u.id === user.id
+          ? { ...u, savedJobs }
+          : u
+      );
+
+      persistUsers(updated);
+      const newUser = updated.find(u => u.id === user.id);
+      setUser(newUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+      return true;
+    } catch (e) {
+      return false;
+    }
   };
 
   const hasApplied = (jobId) => {
@@ -152,7 +282,7 @@ export function AuthProvider({ children }) {
 
   const isSaved = (jobId) => {
     if (!user) return false;
-    return user.savedJobs.includes(jobId);
+    return (user.savedJobs || []).some(a => (typeof a === 'object' ? a.jobId : a) === jobId);
   };
 
   // ── ADMIN JOBS ────────────────────────────────────────────────────────────

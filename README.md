@@ -1,16 +1,47 @@
 # CampusConnect — Placement & Career Portal
 
-A full-featured campus placement portal built with React, featuring persistent localStorage-based backend simulation.
+A full-featured campus placement portal built with React, now with a Node.js + MongoDB backend for user registration/login.
 
 ## 🚀 Quick Start
 
 ```bash
 cd campusconnect
 npm install
+npm run backend:install
+```
+
+### Start Backend (MongoDB)
+
+```bash
+npm run backend
+```
+
+The backend runs on **http://localhost:5000**
+
+### Start Frontend
+
+```bash
 npm start
 ```
 
 Opens at **http://localhost:3000**
+
+---
+
+## 🔌 Backend Environment
+
+Create [backend/.env](backend/.env) (already added in this project) with:
+
+```bash
+PORT=5000
+MONGO_URI=your_mongodb_connection_string
+```
+
+Optional frontend API override in root [.env](.env):
+
+```bash
+REACT_APP_API_BASE_URL=http://localhost:5000/api
+```
 
 ---
 
@@ -21,7 +52,7 @@ Opens at **http://localhost:3000**
 | Student    | student@campus.edu       | password123   |
 | TPO/Admin  | admin@campus.edu         | admin123      |
 
-Or **Sign Up** to create a new account — data persists in localStorage.
+Or **Sign Up** to create a new account — registration data is now saved in MongoDB.
 
 ---
 
