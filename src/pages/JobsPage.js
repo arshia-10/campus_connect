@@ -4,7 +4,7 @@ import JobFilters from '../components/jobs/JobFilters';
 import Footer     from '../components/common/Footer';
 import { useJobs } from '../context/JobsContext';
 import { useAuth } from '../context/AuthContext';
-
+ 
 export default function JobsPage({ t, dark, onNeedLogin }) {
   const { allJobs, addJob } = useJobs();
   const { user } = useAuth();
