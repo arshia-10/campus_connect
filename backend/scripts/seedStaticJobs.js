@@ -4,7 +4,7 @@ const Company = require('../src/models/Company');
 const Job = require('../src/models/Job');
 
 const MONGO = process.env.MONGO_URI;
-
+    
 const STATIC_JOBS = [
   {
     title: 'Software Engineer', company: 'Google', sector: 'Technology',
